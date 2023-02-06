@@ -1,0 +1,60 @@
+import warnings
+warnings.filterwarnings('ignore')
+#Importing required packages
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.linear_model import LogisticRegression
+import statsmodels.api as sm
+from sklearn import metrics
+from sklearn.model_selection import train_test_split
+
+
+def prepare_dataset(filename):
+    diabetes_df = pd.read_csv(filename).set_index('ID')
+    #X_train = diabetes_df.drop(['Outcome'], 1)
+    #X_train = diabetes_df
+    diabetes_df.drop('SkinThickness', axis = 1, inplace = True)
+    scaler = MinMaxScaler()
+    cols = diabetes_df.columns
+    diabetes_df[cols] = scaler.fit_transform(diabetes_df[cols])
+   
+    return diabetes_df
+
+def learn(filename):
+    diabetes_df = prepare_dataset(filename)
+    logreg = LogisticRegression()
+    X_train = diabetes_df.copy(deep=True)
+    y_train = X_train['Outcome']
+    X_train = X_train.drop(['Outcome'], 1)
+    
+    
+    X_train_sm = sm.add_constant(X_train)
+
+    
+    logm2 = sm.GLM(y_train, X_train_sm, family = sm.families.Binomial())
+    res = logm2.fit()
+    
+    
+    return res
+    
+    
+
+def predict(filename, model):
+    X = prepare_dataset(filename)
+    y_pred_final = pd.DataFrame(model.predict(sm.add_constant(X)))
+    y_pred_final = y_pred_final.rename(columns = {0 : 'Outcome_Prob'})
+    y_pred_final['final_predicted'] = y_pred_final.Outcome_Prob.map(lambda x: 1 if x > 0.4 else 0)
+    
+    with_predictions = X.merge(y_pred_final, left_index=True, right_index=True)
+    with_predictions = with_predictions.rename(columns={'final_predicted':'predicted'})
+    
+    return with_predictions    
+
+model = learn('train.csv')
+predictions = predict('diabetes_test.csv', model)
+predictions
+predictions = predictions['predicted']
+predictions.to_csv('predictions.csv')
